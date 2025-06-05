@@ -2,7 +2,7 @@ wandb
 /testing_item/
 /unsloth_compiled_cache/
 /eval/unsloth_compiled_cache/
-/eval/attention/*
-/checkpoints/*
+/eval/attention/
+/checkpoints/
 /dataset/*
 *.yaml
