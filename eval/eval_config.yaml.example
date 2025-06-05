@@ -1,0 +1,49 @@
+# 基本配置
+env:
+  hf_endpoint: "https://hf-mirror.com"
+  ark_api_key: "<火山引擎 api_key>" # 默认使用火山引擎中doubao的模型
+
+# 模型配置
+model:
+  smol: true  # 是否使用小模型
+  base_model_path_small: "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"  # 小模型路径
+  base_model_path_large: "HuggingFaceTB/SmolVLM2-2.2B-Instruct"  # 大模型路径
+  lora_step: 10000  # LoRA步数
+  lora_adapter_path: "../checkpoints/example/checkpoint-{lora_step}"  # LoRA适配器路径
+
+# 评估配置
+eval:
+  skip_translate: false  # 是否跳过翻译
+  skip_score: false  # 是否跳过评分
+  image_dir: "../dataset/eval_images"  # 测试图像目录
+  excel_path: "{image_dir}/smolVLM_output_{lora_step}.xlsx"  # Excel文件路径
+
+# 生成配置
+generation:
+  do_sample: true
+  temperature: 0.2
+  top_p: 0.8
+  max_length: 2500
+  no_repeat_ngram_size: 2
+  repetition_penalty: 1.2
+  beam_generation:
+    num_beams: 5
+    max_length: 1500
+    early_stopping: true
+    no_repeat_ngram_size: 2
+    length_penalty: 1.2
+    repetition_penalty: 1.2
+
+# 翻译配置
+translation:
+  model: "qwen3:14b"
+  max_tokens: 2048
+  temperature: 0.2
+  system_prompt: "你是一个专业的中英翻译助手，请将用户输入的英文内容翻译成中文，输出只要翻译结果，不要其它内容。/no_think"
+
+# 评分配置
+scoring:
+  model: "doubao-1-5-thinking-vision-pro-250428"
+  base_url: "https://ark.cn-beijing.volces.com/api/v3"
+  prompt: "以下是对于这张图片的一个描述,请对它的准确性与描述的完整性进行评分,最后得到一个0~10分的综合分数,并使用<score></score>包裹: {text}"
+  concurrent_tasks: 2  # 并发评分任务数

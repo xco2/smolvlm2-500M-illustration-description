@@ -1,0 +1,36 @@
+# 模型配置
+model:
+  base_model_path: "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+  lora_step: 10000
+  lora_adapter_path: null  # 如果为null则自动生成
+  SMOL: true  # 是否使用小模型
+  # 大小模型的路径配置
+  small_model_path: "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+  large_model_path: "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
+  # LoRA适配器路径模板
+  small_lora_path_template: "../checkpoints/example/checkpoint-{lora_step}"
+  large_lora_path_template: "../checkpoints/example_2B/checkpoint-{lora_step}"
+
+# 输出配置
+output:
+  save_path: "./attention_view"
+  alpha: 0.8  # 混合透明度
+
+# 生成配置
+generation:
+  default_prompt: "Write a descriptive caption for this image in a casual tone. Need to describe the character's clothing, movements, etc"
+  num_beams: 10
+  max_length: 1500
+  early_stopping: true
+  no_repeat_ngram_size: 2
+  length_penalty: 0.8
+
+# 环境配置
+environment:
+  hf_endpoint: "https://hf-mirror.com"
+
+# 测试图像路径
+test_images:
+  - "../dataset/eval_images/1.jpg"
+  - "../dataset/eval_images/2.jpg"
+  - "../dataset/eval_images/3.jpg"

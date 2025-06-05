@@ -1,0 +1,77 @@
+# 基本配置
+use_lora: true  # 是否使用LoRA微调
+smol: true  # 是否使用小模型
+model_id: "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"  # 如果smol为false，将自动使用大模型
+model_id_large: "HuggingFaceTB/SmolVLM2-2.2B-Instruct"  # 大模型ID
+checkpoint_file: null  # 加载的checkpoint文件路径，为null则不加载
+
+# 环境配置
+wandb:
+  api_key: "" # wandb api key
+  project: "" # wandb项目名称
+  mode: "online" # "online" or "offline"
+
+# 小模型LoRA配置
+smol_lora:
+  target_modules_layer: 32  # 要进行LoRA微调的层数
+  lora_r: 8  # LoRA中的R参数
+  lm_head_rank: 32  # lm_head层的rank
+  connect_rank: 64  # connector层的rank
+  # 每个层的R参数分配
+  target_modules_lora_r: [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 32, 32, 32, 32, 32, 64, 64, 64, 64, 64]
+  # 训练参数
+  epoch: 3
+  batch: 12
+  lr: 3.0e-4
+  gradient_steps: 1
+
+# 大模型LoRA配置
+large_lora:
+  target_modules_layer: 24  # 要进行LoRA微调的层数
+  lora_r: 8  # LoRA中的R参数
+  lm_head_rank: 32  # lm_head层的rank
+  connect_rank: 64  # connector层的rank
+  # 每个层的R参数分配
+  target_modules_lora_r: [8, 8, 8, 8, 8, 8, 8, 16, 16, 16, 16, 16, 16, 16, 32, 32, 32, 32, 32, 64, 64, 64, 64, 64]
+  # 训练参数
+  epoch: 1
+  batch: 6
+  lr: 2.0e-4
+  gradient_steps: 1
+
+# 全参数微调配置(USE_LORA=False时生效)
+full_finetune:
+  last_n_train_layer: 2  # 要进行全量微调的最后几层
+
+# 数据集配置
+dataset:
+  train_path: "./dataset/train.jsonl"
+  test_path: "./dataset/test.jsonl"
+  image_dir: "/dataset/imgs"
+
+# 训练配置
+training:
+  bf16: true  # 是否使用bf16训练
+  random_seed: 114514
+  max_length: 2048
+  # 训练参数
+  warmup_steps: 15
+  lr_scheduler_type: "cosine_with_min_lr"
+  lr_min: 5.0e-6
+  dataloader_num_workers: 6
+  max_grad_norm: 1.0
+  weight_decay: 0.01
+  logging_steps: 5
+  save_strategy: "steps"
+  save_steps: 500
+  save_total_limit: 4
+  optim: "adamw_torch"
+  output_dir_template: ".checkpoints/{model_name}_lora"
+  hub_model_id_template: "{model_name}-lora"
+  remove_unused_columns: false
+  report_to: "wandb"
+  run_name: "{model_name}-lora"
+  dataloader_pin_memory: false
+  # 评估配置
+  eval_strategy: null  # "epoch"表示每个epoch评估一次
+  per_device_eval_batch_size: null  # 4

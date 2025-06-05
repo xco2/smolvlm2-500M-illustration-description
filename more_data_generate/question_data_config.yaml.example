@@ -1,0 +1,18 @@
+# 路径配置
+paths:
+  input_jsonl: "../dataset/train.jsonl"
+  output_jsonl: "../dataset/question_answer.jsonl"
+  selected_data: "question_answer_selected_data.jsonl"  # 相对于input_jsonl目录
+  progress: "progress.txt"  # 相对于input_jsonl目录
+
+# 数据处理配置
+data_processing:
+  sample_size: 5000  # 抽样数量
+  save_interval: 10  # 定期保存间隔
+
+# Ollama配置
+ollama:
+  api_url: "http://localhost:11434/api/generate"
+  model: "qwen3:14b"
+  timeout: 300
+  retry_times: 5  # 重试次数

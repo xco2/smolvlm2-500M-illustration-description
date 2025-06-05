@@ -1,0 +1,50 @@
+# 路径配置
+paths:
+  input_jsonl: "../dataset/train.jsonl"
+  output_jsonl: "../dataset/DPO_data/multi_results.jsonl"
+  image_dir: "../dataset/imgs"
+  selected_data: "multi_results_selected_data.jsonl"  # 相对于output_jsonl目录
+  progress: "multi_results_progress.txt"  # 相对于output_jsonl目录
+
+# 模型配置
+model:
+  model_id: "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+  step: 10000
+  lora_path_template: "../checkpoints/example/checkpoint-{step}"
+  torch_dtype: "bfloat16"
+  attn_implementation: "flash_attention_2"
+
+# 生成配置
+generation:
+  batch_size: 32
+  generate_data_num: 500
+  
+# 生成策略配置
+generation_strategies:
+  strategy1:  # 温度低的采样策略
+    do_sample: true
+    temperature: 0.2
+    top_p: 0.8
+    max_length: 2048
+    no_repeat_ngram_size: 2
+    repetition_penalty: 1.2
+    use_cache: true
+    name: "sample_temp_0.2"
+  
+  strategy2:  # 温度高的采样策略
+    do_sample: true
+    temperature: 0.8
+    top_p: 0.9
+    max_length: 2048
+    use_cache: true
+    name: "sample_temp_0.8"
+  
+  # 注释掉的beam search策略，保留以备将来使用
+  # strategy3:  # beam search策略
+  #   num_beams: 5
+  #   max_length: 2500
+  #   early_stopping: true
+  #   no_repeat_ngram_size: 2
+  #   length_penalty: 1.2
+  #   repetition_penalty: 1.2
+  #   name: "beam_search"
