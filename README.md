@@ -1,7 +1,7 @@
 # smolvlm2-500M-illustration-description 🎨
 
 <p align="center">
-    🤗<a href="https://huggingface.co/Qwen">Hugging Face</a>&nbsp&nbsp | &nbsp&nbsp🤗<a href="https://huggingface.co/spaces/xco2/smolvlm2-500M-illustration-description">Demo</a>&nbsp&nbsp
+    🤗<a href="https://huggingface.co/Qwen">Hugging Face</a>&nbsp&nbsp | &nbsp&nbsp🤗<a href="https://huggingface.co/spaces/xco2/smolvlm2-500M-illustration-description">Demo</a>&nbsp&nbsp | &nbsp&nbsp<a href="README_zh.md">简体中文</a>
 </p>
 
 An illustration description generation model that provides more detailed and rich descriptions of the pictures ✨
