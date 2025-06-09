@@ -7,11 +7,13 @@ import sys
 import signal
 import yaml
 
+
 # 加载配置文件
-def load_config(config_path="question_data_config.yaml"):
+def load_config(config_path="generate_question_data_config.yaml"):
     """加载YAML配置文件"""
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
+
 
 # 加载配置
 config = load_config()
@@ -92,11 +94,11 @@ def save_jsonl(data, file_path):
 def main():
     global stop_requested
     print("加载数据...")
-    
+
     # 从配置中获取路径
     selected_data_path = os.path.join(os.path.dirname(input_jsonl_path), config['paths']['selected_data'])
     progress_path = os.path.join(os.path.dirname(input_jsonl_path), config['paths']['progress'])
-    
+
     # 从配置中获取数据处理设置
     sample_size = config['data_processing']['sample_size']
     save_interval = config['data_processing']['save_interval']

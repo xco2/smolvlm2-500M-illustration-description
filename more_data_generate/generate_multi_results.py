@@ -13,11 +13,13 @@ from transformers import AutoProcessor, AutoModelForImageTextToText
 from peft import PeftModel
 from multiprocessing import Process, Queue
 
+
 # 加载配置文件
-def load_config(config_path="multi_results_config.yaml"):
+def load_config(config_path="generate_multi_results_config.yaml"):
     """加载YAML配置文件"""
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
+
 
 # 加载配置
 config = load_config()
@@ -155,7 +157,8 @@ def merge_inputs(instances, dtype):
         padded_pixel_values_list.append(padded_pv)
         padded_mask_list.append(padded_mask)
 
-    inputs["pixel_values"] = torch.stack(padded_pixel_values_list, dim=0).to("cuda").to(getattr(torch, config["model"]["torch_dtype"]))
+    inputs["pixel_values"] = torch.stack(padded_pixel_values_list, dim=0).to("cuda").to(
+        getattr(torch, config["model"]["torch_dtype"]))
     inputs["pixel_attention_mask"] = torch.stack(padded_mask_list, dim=0).to("cuda")
     return inputs
 
@@ -189,22 +192,22 @@ def generate_results(image_paths, prompts):
 
     # 从配置中获取生成策略
     generation_results = {}
-    
+
     with torch.no_grad():
         # 遍历所有启用的生成策略
         for strategy_key, strategy_config in config["generation_strategies"].items():
             # 复制策略配置并移除name字段，因为它不是generate方法的参数
             generate_kwargs = {k: v for k, v in strategy_config.items() if k != "name"}
-            
+
             # 使用当前策略生成结果
             generated_ids = model.generate(
                 **inputs,
                 **generate_kwargs
             )
-            
+
             # 解码生成的文本
             generated_texts = processor.batch_decode(generated_ids, skip_special_tokens=True)
-            
+
             # 保存这个策略的结果
             strategy_name = strategy_config["name"]
             generation_results[strategy_name] = generated_texts
@@ -214,16 +217,16 @@ def generate_results(image_paths, prompts):
     res = []
     for i in range(n_data):
         result_item = {}
-        
+
         # 处理每个策略的结果
         for strategy_name, texts in generation_results.items():
             text = texts[i]
             if assistant_prefix in text:
                 text = text.split(assistant_prefix)[1]
             result_item[strategy_name] = text
-            
+
         res.append(result_item)
-        
+
     return res
 
 
