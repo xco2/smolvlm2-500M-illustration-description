@@ -39,10 +39,6 @@ large_lora:
   lr: 2.0e-4
   gradient_steps: 1
 
-# 全参数微调配置(USE_LORA=False时生效)
-full_finetune:
-  last_n_train_layer: 2  # 要进行全量微调的最后几层
-
 # 数据集配置
 dataset:
   train_path: "./dataset/train.jsonl"

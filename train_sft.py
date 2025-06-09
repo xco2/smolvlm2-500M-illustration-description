@@ -1,10 +1,3 @@
-"""
-@File    :   train_mutil.py
-@Time    :   2025/06/01 0:12:02
-@Author  :   xco2
-@Version :   1.0
-当前正在运行的训练代码
-"""
 import unsloth
 from unsloth import FastLanguageModel
 import os
@@ -22,12 +15,14 @@ from transformers import (
 )
 from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model, PeftModel
 
+
 # ========== 加载配置文件 ==========
 def load_config(config_path="config.yaml"):
     """加载YAML配置文件"""
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
     return config
+
 
 config = load_config()
 
@@ -40,10 +35,12 @@ CHECKPOINT_FILE = config["checkpoint_file"]
 
 # ========== 训练参数 ==========
 model_name = MODEL_ID.split("/")[-1]
-# os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-os.environ["WANDB_API_KEY"] = config["wandb"]["api_key"]
-os.environ["WANDB_PROJECT"] = config["wandb"]["project"]
-os.environ["WANDB_MODE"] = config["wandb"]["mode"]
+# os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"]
+if config["wandb"]["mode"] == "online":
+    os.environ["WANDB_API_KEY"] = config["wandb"]["api_key"]
+    os.environ["WANDB_PROJECT"] = config["wandb"]["project"]
+else:
+    os.environ["WANDB_MODE"] = config["wandb"]["mode"]
 
 # --------LoRA 配置----------
 if SMOL:
@@ -75,9 +72,6 @@ else:
     batch = lora_config["batch"]
     lr = lora_config["lr"]
     gradient_steps = lora_config["gradient_steps"]
-
-# --------全参数微调---------(USE_LORA=False时生效)
-LAST_N_TRAIN_LAYER = config["full_finetune"]["last_n_train_layer"]  # 要进行全量微调的最后几层
 
 # 训练数据集路径
 dataset_path = config["dataset"]["train_path"]
@@ -123,6 +117,7 @@ training_args = TrainingArguments(
     # per_device_eval_batch_size=config["training"]["per_device_eval_batch_size"],
 )
 
+
 # ========== 模型 ==========
 def build_model_unsloth():
     if USE_LORA:
@@ -132,8 +127,7 @@ def build_model_unsloth():
             max_seq_length=max_length,
             load_in_4bit=False,
             dtype=torch.bfloat16 if bf_16 else None,
-            cache_dir=r"/hy-tmp/hub"
-            # No|ne for auto detection. Float16 for Tesla T4, V100, Bfloat16 for Ampere+
+            # None for auto detection. Float16 for Tesla T4, V100, Bfloat16 for Ampere+
         )
         if CHECKPOINT_FILE is not None:
             # Load LoRA checkpoint
@@ -187,19 +181,20 @@ def build_model_unsloth():
         model, processor = FastLanguageModel.from_pretrained(
             model_name=MODEL_ID,
             max_seq_length=max_length,
+            load_in_4bit=False,
             dtype=torch.bfloat16 if bf_16 else None,
-            # No|ne for auto detection. Float16 for Tesla T4, V100, Bfloat16 for Ampere+
+            # None for auto detection. Float16 for Tesla T4, V100, Bfloat16 for Ampere+
         )
+        for param in model.model.connector.parameters():
+            param.requires_grad = True
+        for layer in model.model.text_model.layers:
+            for param in layer.parameters():
+                param.requires_grad = True
+        for param in model.lm_head.parameters():
+            param.requires_grad = True
         # 如果只想微调LLM部分，冻结视觉模型参数
         for param in model.model.vision_model.parameters():
             param.requires_grad = False
-        # 微调最后2层的参数
-        last_n_layers = model.model.text_model.layers[:-LAST_N_TRAIN_LAYER]
-        for layer in last_n_layers:
-            for param in layer.parameters():
-                param.requires_grad = False
-        # 微调connector的参数
-        model.model.connector.modality_projection.proj.weight.requires_grad = True
     return processor, model
 
 
