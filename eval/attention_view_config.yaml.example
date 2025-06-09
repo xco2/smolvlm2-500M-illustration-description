@@ -18,9 +18,9 @@ output:
 
 # 生成配置
 generation:
-  default_prompt: "Write a descriptive caption for this image in a casual tone. Need to describe the character's clothing, movements, etc"
+  default_prompt: "Analyze this image like an art critic would with information about its composition, style, symbolism, the use of color, light, any artistic movement it might belong to, etc. "
   num_beams: 10
-  max_length: 1500
+  max_length: 2048
   early_stopping: true
   no_repeat_ngram_size: 2
   length_penalty: 0.8

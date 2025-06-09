@@ -39,6 +39,8 @@ class AttentionViewer:
             else:
                 template = self.config["model"]["large_lora_path_template"]
                 self.lora_adapter_path = template.format(lora_step=self.lora_step)
+                # 暂不支持2B模型的attention可视化
+                raise NotImplementedError("2B模型的attention可视化暂不支持")
         else:
             self.lora_adapter_path = lora_adapter_path
 
@@ -393,7 +395,7 @@ class AttentionViewer:
         # 恢复原始save_path
         self.save_path = original_save_path
 
-    def process_config_images():
+    def process_config_images(self):
         # 从配置文件中获取测试图像路径
         image_paths = self.config["test_images"]
 
