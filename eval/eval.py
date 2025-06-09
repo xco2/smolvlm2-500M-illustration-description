@@ -16,22 +16,24 @@ from io import BytesIO
 import asyncio
 from tqdm import tqdm
 
+
 # 加载配置文件
 def load_config(config_path="eval_config.yaml"):
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
-    
+
     # 处理模板字符串
     if "{lora_step}" in config["model"]["lora_adapter_path"]:
         config["model"]["lora_adapter_path"] = config["model"]["lora_adapter_path"].format(
             lora_step=config["model"]["lora_step"])
-    
+
     if "{image_dir}" in config["eval"]["excel_path"] or "{lora_step}" in config["eval"]["excel_path"]:
         config["eval"]["excel_path"] = config["eval"]["excel_path"].format(
             image_dir=config["eval"]["image_dir"],
             lora_step=config["model"]["lora_step"])
-    
+
     return config
+
 
 # 加载配置
 config = load_config()
@@ -45,9 +47,10 @@ subprocess.run(['ollama', 'list'])
 subprocess.run(['ollama', 'stop', config["translation"]["model"]])
 
 # 基础模型的路径或Hugging Face模型ID
-base_model_path = config["model"]["base_model_path_small"] if config["model"]["smol"] else config["model"]["base_model_path_large"]
+base_model_path = config["model"]["base_model_path_small"] if config["model"]["smol"] else config["model"][
+    "base_model_path_large"]
 lora_step = config["model"]["lora_step"]
-skip_translate = config["eval"]["skip_translate"]
+skip_generate_and_translate = config["eval"]["skip_generate_and_translate"]
 skip_score = config["eval"]["skip_score"]
 
 # 训练好的LoRA适配器路径
@@ -59,7 +62,7 @@ image_dir = config["eval"]["image_dir"]
 # Excel 文件路径
 excel_path = config["eval"]["excel_path"]
 
-if not skip_translate:
+if not skip_generate_and_translate:
     # 加载处理器
     processor = AutoProcessor.from_pretrained(base_model_path)
 
@@ -151,7 +154,7 @@ def caption_one_image(image_path):
         print(f'[Image]: {os.path.basename(image_path)}')
         print('🤖️: ', end='')
         # streamer = TextStreamer(processor.tokenizer, skip_prompt=True, skip_special_tokens=True)
-        
+
         # 使用配置中的生成参数
         gen_config = config["generation"]
         generated_ids = model.generate(
@@ -163,7 +166,7 @@ def caption_one_image(image_path):
             no_repeat_ngram_size=gen_config["no_repeat_ngram_size"],
             repetition_penalty=gen_config["repetition_penalty"],
         )
-        
+
         beam_config = gen_config["beam_generation"]
         generated_ids2 = model.generate(
             **inputs,
@@ -190,6 +193,8 @@ def caption_one_image(image_path):
 
 
 def caption_dir(image_dir):
+    if not os.path.exists(image_dir):
+        return
     global df
     global_token_speed = [0, 0]
     global_chart_speed = [0, 0]
@@ -236,8 +241,8 @@ def caption_dir(image_dir):
     print(f"global_chart_speed:{global_chart_speed[0] / global_chart_speed[1]:.4f} chart/s")
 
 
-if skip_translate:
-    safe_len = 18
+if skip_generate_and_translate:
+    safe_len = len([i for i in os.listdir(image_dir) if not i.endswith(".xlsx")])
 else:
     caption_dir(image_dir)
     safe_len = df.shape[0]
@@ -328,7 +333,7 @@ def score_with_doubao(text, image_path):
     # 请确保您已将 API Key 存储在环境变量 ARK_API_KEY 中
     # 初始化Ark客户端，从环境变量中读取您的API Key
     prompt = config["scoring"]["prompt"].format(text=text)
-    
+
     response = client.chat.completions.create(
         model=config["scoring"]["model"],
         messages=[
@@ -478,7 +483,7 @@ async def async_main(skip_translate=False):
     df["reasoning_beam"] = reasoning_col_beam
 
 
-asyncio.run(async_main(skip_translate))
+asyncio.run(async_main(skip_generate_and_translate))
 
 # 保存到 Excel
 df.to_excel(excel_path, index=False)

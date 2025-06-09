@@ -13,7 +13,7 @@ model:
 
 # 评估配置
 eval:
-  skip_translate: false  # 是否跳过翻译
+  skip_generate_and_translate: false  # 是否跳过生成和翻译
   skip_score: false  # 是否跳过评分
   image_dir: "../dataset/eval_images"  # 测试图像目录
   excel_path: "{image_dir}/smolVLM_output_{lora_step}.xlsx"  # Excel文件路径
