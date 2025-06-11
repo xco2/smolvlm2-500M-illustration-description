@@ -311,7 +311,6 @@ def image_to_base64(input_path, output_quality=None):
                 new_size = (int(img.size[0] / scale), int(img.size[1] / scale))
                 img = img.resize(new_size, Image.LANCZOS)
 
-            # 保存为JPEG格式到缓冲区
             img.save(buffer, format='PNG', quality=90)
 
             # 获取二进制数据

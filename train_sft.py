@@ -36,9 +36,9 @@ CHECKPOINT_FILE = config["checkpoint_file"]
 # ========== 训练参数 ==========
 model_name = MODEL_ID.split("/")[-1]
 # os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"]
+os.environ["WANDB_PROJECT"] = config["wandb"]["project"]
 if config["wandb"]["mode"] == "online":
     os.environ["WANDB_API_KEY"] = config["wandb"]["api_key"]
-    os.environ["WANDB_PROJECT"] = config["wandb"]["project"]
 else:
     os.environ["WANDB_MODE"] = config["wandb"]["mode"]
 
@@ -54,7 +54,7 @@ if SMOL:
     LORA_RANKS = {layer_idx: lora_r for layer_idx, lora_r in zip(target_modules_layer, target_modules_lora_r)}
 
     epoch = lora_config["epoch"]
-    batch = lora_config["batch"]
+    batch_size = lora_config["batch_size"]
     lr = lora_config["lr"]
     gradient_steps = lora_config["gradient_steps"]
 else:
@@ -69,7 +69,7 @@ else:
     LORA_RANKS = {layer_idx: lora_r for layer_idx, lora_r in zip(target_modules_layer, target_modules_lora_r)}
 
     epoch = lora_config["epoch"]
-    batch = lora_config["batch"]
+    batch_size = lora_config["batch_size"]
     lr = lora_config["lr"]
     gradient_steps = lora_config["gradient_steps"]
 
@@ -87,7 +87,7 @@ max_length = config["training"]["max_length"]
 
 training_args = TrainingArguments(
     num_train_epochs=epoch,
-    per_device_train_batch_size=batch,
+    per_device_train_batch_size=batch_size,
     gradient_accumulation_steps=gradient_steps,
     warmup_steps=config["training"]["warmup_steps"],
     learning_rate=lr,

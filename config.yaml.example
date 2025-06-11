@@ -21,7 +21,7 @@ smol_lora:
   target_modules_lora_r: [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 32, 32, 32, 32, 32, 64, 64, 64, 64, 64]
   # 训练参数
   epoch: 3
-  batch: 12
+  batch_size: 12
   lr: 3.0e-4
   gradient_steps: 1
 
@@ -35,7 +35,7 @@ large_lora:
   target_modules_lora_r: [8, 8, 8, 8, 8, 8, 8, 16, 16, 16, 16, 16, 16, 16, 32, 32, 32, 32, 32, 64, 64, 64, 64, 64]
   # 训练参数
   epoch: 1
-  batch: 6
+  batch_size: 6
   lr: 2.0e-4
   gradient_steps: 1
 
