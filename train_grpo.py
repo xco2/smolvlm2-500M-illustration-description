@@ -307,9 +307,15 @@ def collate_fn(examples):
 
 def load_dataset_fn():
     print("加载数据集...")
-    raw_dataset = load_dataset("json", data_files={"train": dataset_path, "test": test_dataset_path})
+    data_files = {"train": dataset_path}
+    if test_dataset_path is not None:
+        data_files["test"] = test_dataset_path
+    raw_dataset = load_dataset("json", data_files=data_files)
     train_ds = raw_dataset["train"]
-    test_ds = raw_dataset["test"]
+    if test_dataset_path is not None:
+        test_ds = raw_dataset["test"]
+    else:
+        test_ds = None
     print("数据集加载完成！")
     print("训练集样例：", train_ds[0])
     # print("测试集样例：", test_ds[0])
@@ -367,19 +373,31 @@ def image_to_base64(input_path, output_quality=None):
         return None
 
 
-def score_with_mino_desc(image_path, desc):
-    api_url = "http://localhost:1234/v1/chat/completions"
-    prompt_template = "下面是对这张图片的一个描述，请逐句分析描述是否正确并记录下来，最后使用json格式返回正确句子的数量与错误句子的数量。\n"
-    "json格式：{{'correct_count': 正确句子数量, 'wrong_count': 错误句子数量}}\n"
-    "描述：{desc}"
+# 保存mimo reward产生的数据
+def save_mimo_reward_data(image_path, question, vlm_answer, score_prompt, response_json, data_type):
+    data = {
+        "image_path": image_path,
+        "question": question,
+        "vlm_answer": vlm_answer,
+        "score_prompt": score_prompt,
+        "response_json": response_json,
+        "data_type": data_type
+    }
+    with open(config["mimo_reward_data_save_path"], "a", encoding="utf-8") as f:
+        f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
+
+def score_with_mino_desc(image_path, question, desc, data_type):
+    api_url = config["llama_server"]["api_url"] + "v1/chat/completions"
+    prompt_template = "下面是对这张图片的一个描述，请逐句分析描述是否正确并记录下来，最后使用json格式返回正确句子的数量与错误句子的数量。\njson格式：{{'correct_count': 正确句子数量, 'wrong_count': 错误句子数量}}\n描述：{desc}"
+    prompt_template = prompt_template.format(desc=desc)
     payload = {
         "messages": [
             {
                 "role": "user",
                 "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_to_base64(image_path)}"}},
-                    {"type": "text", "text": prompt_template.format(desc=desc)},
+                    {"type": "text", "text": prompt_template},
                 ]
             },
         ],
@@ -387,29 +405,37 @@ def score_with_mino_desc(image_path, desc):
         "max_tokens": 8000,
         "model": "mimo-vl-7b-rl",
     }
-    response = requests.post(api_url, json=payload)
-    if response.status_code == 200:
-        try:
-            data = response.json()
-            content = data['choices'][0]['message']['content']
-            score_str = content.split("</think>")[1]
-            score_data = json.loads(score_str)
-            correct_count = float(score_data['correct_count'])
-            wrong_count = float(score_data['wrong_count'])
-            return ((correct_count - 1.2 * wrong_count) / (correct_count + wrong_count) + 1.2) / 2.2  # 归一化
-        except Exception as e:
-            print(f"Error: {e}")
+    try_time = 0
+    while True:
+        try_time += 1
+        if try_time > 3:
             return 0
-    else:
-        print(f"Error: {response.status_code}")
-        return 0
+        response = requests.post(api_url, json=payload, timeout=600)
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                content = data['choices'][0]['message']['content']
+                score_str = content.split("</think>")[1]
+                if "```json" in score_str:
+                    score_str = score_str.replace("```json", "").replace("```", "")
+                score_data = json.loads(score_str)
+                correct_count = float(score_data['correct_count'])
+                wrong_count = float(score_data['wrong_count'])
+                # 保存评分结果
+                save_mimo_reward_data(image_path, question, desc, prompt_template, data, data_type)
+                return ((correct_count - 1.2 * wrong_count) / (correct_count + wrong_count) + 1.2) / 2.2  # 归一化
+            except Exception as e:
+                print(f"[score_with_mino_desc] Error: {e}")
+                print(f"response: ", response.json())
+                continue
+        else:
+            print(f"[score_with_mino_desc]Error: {response.status_code}")
+            continue
 
 
-def score_with_mino_QA(image_path, question, answer):
-    api_url = "http://localhost:1234/v1/chat/completions"
-    prompt_template = "下面是关于这张图片的一个问答，请分析回答是否正确，在回答时只输出‘正确’或‘错误’\n"
-    f"问题：{question}\n"
-    f"回答：{answer}"
+def score_with_mino_QA(image_path, question, answer, data_type):
+    api_url = config["llama_server"]["api_url"] + "v1/chat/completions"
+    prompt_template = f"下面是关于这张图片的一个问答，请分析回答是否正确，在回答时只输出‘正确’或‘错误’\n问题：{question}\n回答：{answer}"
 
     payload = {
         "messages": [
@@ -425,22 +451,29 @@ def score_with_mino_QA(image_path, question, answer):
         "max_tokens": 8000,
         "model": "mimo-vl-7b-rl",
     }
-    response = requests.post(api_url, json=payload)
-    if response.status_code == 200:
-        try:
-            data = response.json()
-            content = data['choices'][0]['message']['content']
-            score_str = content.split("</think>")[1]
-            if "正确" in score_str:
-                return 1.0
-            else:
-                return 0.0
-        except Exception as e:
-            print(f"Error: {e}")
+    try_time = 0
+    while True:
+        try_time += 1
+        if try_time > 3:
             return 0
-    else:
-        print(f"Error: {response.status_code}")
-        return 0
+        response = requests.post(api_url, json=payload, timeout=600)
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                content = data['choices'][0]['message']['content']
+                score_str = content.split("</think>")[1]
+                # 保存评分结果
+                save_mimo_reward_data(image_path, question, answer, prompt_template, data, data_type)
+                if "正确" in score_str and "不正确" not in score_str:
+                    return 1.0
+                else:
+                    return 0.0
+            except Exception as e:
+                print(f"[score_with_mino_QA]Error: {e}")
+                continue
+        else:
+            print(f"[score_with_mino_QA]Error: {response.status_code}")
+            continue
 
 
 # 奖励函数
@@ -459,11 +492,11 @@ def mimo_reward(prompts, completions, **reward_kwargs):
         if check_repeat(completion):
             reward.append(0.0)
         else:
-            # if data_type == "desc":
-            #     score = score_with_mino_desc(img_p, completion)
-            # else:
-            #     score = score_with_mino_QA(img_p, prompt, completion)
-            score = 0.0
+            if data_type == "desc":
+                score = score_with_mino_desc(img_p, prompt, completion, data_type)
+            else:
+                score = score_with_mino_QA(img_p, prompt, completion, data_type)
+            # score = 0.0
             reward.append(score)
 
     return reward
@@ -523,17 +556,17 @@ def total_len_reward(prompts, completions, **reward_kwargs):
     """
 
     reward = []
-    for completion in completions:
-        if reward_kwargs["data_type"] == "desc":
+    for completion, data_type in zip(completions, reward_kwargs["data_type"]):
+        if data_type == "desc":
             len_completion = len(completion)
-            if len_completion <= 100:
-                reward.append(0)
+            if len_completion <= 100 or check_repeat(completion):
+                reward.append(0.0)
             elif len_completion <= 200:
                 reward.append(0.1 + 0.1 * (200 - len_completion) / 100)
             else:
                 reward.append(0.2)
         else:
-            reward.append(0)
+            reward.append(0.0)
     return reward
 
 
@@ -753,7 +786,3 @@ def train_main():
 
 if __name__ == "__main__":
     train_main()
-
-"""
-train_grpo.py 448-618 这个类的修改使GPROTrainer可以支持多模态的模型训练,请参照这个类的做法,编写一个子类继承trl库中DPOTrainer,使其可以支持多模态模型的训练
-"""
