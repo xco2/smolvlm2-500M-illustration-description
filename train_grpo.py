@@ -11,8 +11,9 @@ from transformers import (
     Trainer,
     AutoModelForImageTextToText
 )
-from peft import LoraConfig, prepare_model_for_kbit_training, PeftModel
+from peft import LoraConfig, prepare_model_for_kbit_training, PeftModel, get_peft_model
 from trl import GRPOConfig
+import time
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
@@ -125,6 +126,7 @@ def build_model_unsloth():
         processor = AutoProcessor.from_pretrained(MODEL_ID)
 
         if config["from_lora_checkpoint"] is not None:
+            print("合并原来的lora")
             model = PeftModel.from_pretrained(model, config["from_lora_checkpoint"])
             model = model.merge_and_unload()
         # ----------------------------------------------------------------------------------
@@ -183,8 +185,11 @@ def build_model_unsloth():
             model = model.merge_and_unload()
 
         for param in model.model.connector.parameters():
-            param.requires_grad = True
+            param.requires_grad = False
         for layer in model.model.text_model.layers:
+            for param in layer.parameters():
+                param.requires_grad = False
+        for layer in model.model.text_model.layers[-5:]:
             for param in layer.parameters():
                 param.requires_grad = True
         for param in model.lm_head.parameters():
@@ -409,12 +414,16 @@ def score_with_mino_desc(image_path, question, desc, data_type):
     while True:
         try_time += 1
         if try_time > 3:
+            print("!!![score_with_mino_desc]尝试请求3次失败")
             return 0
         response = requests.post(api_url, json=payload, timeout=600)
         if response.status_code == 200:
             try:
                 data = response.json()
                 content = data['choices'][0]['message']['content']
+                if len(content.split("<think>")[1].split("</think>")[0])<20:
+                    time.sleep(0.05)
+                    continue
                 score_str = content.split("</think>")[1]
                 if "```json" in score_str:
                     score_str = score_str.replace("```json", "").replace("```", "")
@@ -423,13 +432,15 @@ def score_with_mino_desc(image_path, question, desc, data_type):
                 wrong_count = float(score_data['wrong_count'])
                 # 保存评分结果
                 save_mimo_reward_data(image_path, question, desc, prompt_template, data, data_type)
-                return ((correct_count - 1.2 * wrong_count) / (correct_count + wrong_count) + 1.2) / 2.2  # 归一化
+                return ((correct_count - 1.1 * wrong_count) / (correct_count + wrong_count) + 1.1) / 2.2  # 归一化
             except Exception as e:
                 print(f"[score_with_mino_desc] Error: {e}")
                 print(f"response: ", response.json())
+                time.sleep(0.05)
                 continue
         else:
             print(f"[score_with_mino_desc]Error: {response.status_code}")
+            time.sleep(0.05)
             continue
 
 
@@ -455,12 +466,16 @@ def score_with_mino_QA(image_path, question, answer, data_type):
     while True:
         try_time += 1
         if try_time > 3:
+            print("!!![score_with_mino_QA]尝试请求3次失败")
             return 0
         response = requests.post(api_url, json=payload, timeout=600)
         if response.status_code == 200:
             try:
                 data = response.json()
                 content = data['choices'][0]['message']['content']
+                if len(content.split("<think>")[1].split("</think>")[0])<20:
+                    time.sleep(0.05)
+                    continue
                 score_str = content.split("</think>")[1]
                 # 保存评分结果
                 save_mimo_reward_data(image_path, question, answer, prompt_template, data, data_type)
@@ -470,9 +485,11 @@ def score_with_mino_QA(image_path, question, answer, data_type):
                     return 0.0
             except Exception as e:
                 print(f"[score_with_mino_QA]Error: {e}")
+                time.sleep(0.05)
                 continue
         else:
             print(f"[score_with_mino_QA]Error: {response.status_code}")
+            time.sleep(0.05)
             continue
 
 
@@ -492,11 +509,15 @@ def mimo_reward(prompts, completions, **reward_kwargs):
         if check_repeat(completion):
             reward.append(0.0)
         else:
-            if data_type == "desc":
-                score = score_with_mino_desc(img_p, prompt, completion, data_type)
+            if len(completion) <= 30:
+                reward.append(0.0)
             else:
-                score = score_with_mino_QA(img_p, prompt, completion, data_type)
+                if data_type == "desc":
+                    score = score_with_mino_desc(img_p, prompt, completion, data_type)
+                else:
+                    score = score_with_mino_QA(img_p, prompt, completion, data_type)
             # score = 0.0
+            time.sleep(0.05)
             reward.append(score)
 
     return reward
@@ -559,7 +580,9 @@ def total_len_reward(prompts, completions, **reward_kwargs):
     for completion, data_type in zip(completions, reward_kwargs["data_type"]):
         if data_type == "desc":
             len_completion = len(completion)
-            if len_completion <= 100 or check_repeat(completion):
+            if len_completion <= 30:
+                reward.append(-1.0)
+            elif len_completion <= 100 or check_repeat(completion):
                 reward.append(0.0)
             elif len_completion <= 200:
                 reward.append(0.1 + 0.1 * (200 - len_completion) / 100)
@@ -786,3 +809,4 @@ def train_main():
 
 if __name__ == "__main__":
     train_main()
+
