@@ -394,7 +394,7 @@ def save_mimo_reward_data(image_path, question, vlm_answer, score_prompt, respon
 
 def score_with_mino_desc(image_path, question, desc, data_type):
     api_url = config["llama_server"]["api_url"] + "v1/chat/completions"
-    prompt_template = "下面是对这张图片的一个描述，请逐句分析描述是否正确并记录下来，最后使用json格式返回正确句子的数量与错误句子的数量。\njson格式：{{'correct_count': 正确句子数量, 'wrong_count': 错误句子数量}}\n描述：{desc}"
+    prompt_template = "请对图片描述内容进行逐句分析，判断是否存在与图片内容不符的内容，如果发现，这记录下来\n析完成后，请按照以下 JSON 格式返回统计结果：{'wrong_count': 错误内容数量}\n待分析的图片描述：{desc}"
     prompt_template = prompt_template.format(desc=desc)
     payload = {
         "messages": [
@@ -414,25 +414,29 @@ def score_with_mino_desc(image_path, question, desc, data_type):
     while True:
         try_time += 1
         if try_time > 3:
-            print("!!![score_with_mino_desc]尝试请求3次失败")
+            print("!!![score_with_mino_desc]尝试请求3次失败!!!")
             return 0
-        response = requests.post(api_url, json=payload, timeout=600)
+        try:
+            response = requests.post(api_url, json=payload, timeout=600)
+        except Exception as e:
+            print(f"[score_with_mino_desc]Error: {e}")
+            time.sleep(0.05)
+            continue
         if response.status_code == 200:
             try:
                 data = response.json()
                 content = data['choices'][0]['message']['content']
-                if len(content.split("<think>")[1].split("</think>")[0])<20:
+                if len(content.split("<think>")[1].split("</think>")[0]) < 20:
                     time.sleep(0.05)
                     continue
                 score_str = content.split("</think>")[1]
                 if "```json" in score_str:
                     score_str = score_str.replace("```json", "").replace("```", "")
                 score_data = json.loads(score_str)
-                correct_count = float(score_data['correct_count'])
                 wrong_count = float(score_data['wrong_count'])
                 # 保存评分结果
                 save_mimo_reward_data(image_path, question, desc, prompt_template, data, data_type)
-                return ((correct_count - 1.1 * wrong_count) / (correct_count + wrong_count) + 1.1) / 2.2  # 归一化
+                return wrong_count
             except Exception as e:
                 print(f"[score_with_mino_desc] Error: {e}")
                 print(f"response: ", response.json())
@@ -466,14 +470,19 @@ def score_with_mino_QA(image_path, question, answer, data_type):
     while True:
         try_time += 1
         if try_time > 3:
-            print("!!![score_with_mino_QA]尝试请求3次失败")
+            print("!!![score_with_mino_QA]尝试请求3次失败!!!")
             return 0
-        response = requests.post(api_url, json=payload, timeout=600)
+        try:
+            response = requests.post(api_url, json=payload, timeout=600)
+        except Exception as e:
+            print(f"[score_with_mino_QA]Error: {e}")
+            time.sleep(0.05)
+            continue
         if response.status_code == 200:
             try:
                 data = response.json()
                 content = data['choices'][0]['message']['content']
-                if len(content.split("<think>")[1].split("</think>")[0])<20:
+                if len(content.split("<think>")[1].split("</think>")[0]) < 20:
                     time.sleep(0.05)
                     continue
                 score_str = content.split("</think>")[1]
@@ -809,4 +818,3 @@ def train_main():
 
 if __name__ == "__main__":
     train_main()
-
