@@ -1,5 +1,3 @@
-import unsloth
-from unsloth import FastLanguageModel
 import os
 import torch
 from torch import nn
@@ -130,21 +128,14 @@ training_args = ORPOConfig(
 
 
 # ========== 模型 ==========
-def build_model_unsloth():
+def build_model():
     if USE_LORA:
-        # model = AutoModelForImageTextToText.from_pretrained(
-        #     MODEL_ID,
-        #     torch_dtype=torch.bfloat16,
-        #     # _attn_implementation="flash_attention_2"
-        # )
-        # processor = AutoProcessor.from_pretrained(MODEL_ID)
-        model, processor = FastLanguageModel.from_pretrained(
-            model_name=MODEL_ID,
-            max_seq_length=max_length,
-            load_in_4bit=False,
-            dtype=torch.bfloat16 if bf_16 else None,
-            # None for auto detection. Float16 for Tesla T4, V100, Bfloat16 for Ampere+
+        model = AutoModelForImageTextToText.from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.bfloat16,
+            # _attn_implementation="flash_attention_2"
         )
+        processor = AutoProcessor.from_pretrained(MODEL_ID)
 
         if config["from_lora_checkpoint"] is not None:
             print("合并原来的lora")
@@ -159,8 +150,10 @@ def build_model_unsloth():
                           [f'model.text_model.layers.{i}.mlp.gate_proj' for i in target_modules_layer] +
                           [f'model.text_model.layers.{i}.mlp.up_proj' for i in target_modules_layer] +
                           [f'model.text_model.layers.{i}.mlp.down_proj' for i in target_modules_layer])
-        target_modules.append("model.connector.modality_projection.proj")
-        target_modules.append("lm_head")
+        if LM_HEAD_RANk > 0:
+            target_modules.append("model.connector.modality_projection.proj")
+        if CONNECT_RANK > 0:
+            target_modules.append("lm_head")
 
         # 创建一个字典，为每个模块指定rank值
         rank_pattern = {}
@@ -172,8 +165,10 @@ def build_model_unsloth():
                 rank_pattern[module_name] = layer_rank
 
         # 为lm_head设置默认rank
-        rank_pattern["lm_head"] = LM_HEAD_RANk
-        rank_pattern["model.connector.modality_projection.proj"] = CONNECT_RANK
+        if LM_HEAD_RANk > 0:
+            rank_pattern["lm_head"] = LM_HEAD_RANk
+        if CONNECT_RANK > 0:
+            rank_pattern["model.connector.modality_projection.proj"] = CONNECT_RANK
 
         lora_config = LoraConfig(
             r=LORA_R,  # 默认rank值
@@ -223,7 +218,7 @@ def build_model_unsloth():
 
 def load_processor_and_model():
     if __name__ == "__main__":
-        return build_model_unsloth()
+        return build_model()
     else:
         return AutoProcessor.from_pretrained(MODEL_ID), None
 
