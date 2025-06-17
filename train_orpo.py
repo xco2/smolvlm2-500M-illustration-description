@@ -41,8 +41,9 @@ else:
 if SMOL:
     lora_config = config["smol_lora"]
     target_modules_layer = [
-        i for i in range(lora_config["target_modules_layer"])
+        31 - i for i in range(lora_config["target_modules_layer"])
     ]  # 要进行 LoRA 微调的层索引
+    target_modules_layer = target_modules_layer[::-1]
     LORA_R = lora_config["lora_r"]  # LoRA 中的 R 参数
     LM_HEAD_RANk = lora_config["lm_head_rank"]  # lm_head层的rank
     CONNECT_RANK = lora_config["connect_rank"]  # connector层的rank
@@ -60,8 +61,9 @@ if SMOL:
 else:
     lora_config = config["large_lora"]
     target_modules_layer = [
-        i for i in range(lora_config["target_modules_layer"])
+        23 - i for i in range(lora_config["target_modules_layer"])
     ]  # 要进行 LoRA 微调的层索引
+    target_modules_layer = target_modules_layer[::-1]
     LORA_R = lora_config["lora_r"]  # LoRA 中的 R 参数
     LM_HEAD_RANk = lora_config["lm_head_rank"]  # lm_head层的rank
     CONNECT_RANK = lora_config["connect_rank"]  # connector层的rank
@@ -150,9 +152,9 @@ def build_model():
                           [f'model.text_model.layers.{i}.mlp.gate_proj' for i in target_modules_layer] +
                           [f'model.text_model.layers.{i}.mlp.up_proj' for i in target_modules_layer] +
                           [f'model.text_model.layers.{i}.mlp.down_proj' for i in target_modules_layer])
-        if LM_HEAD_RANk > 0:
-            target_modules.append("model.connector.modality_projection.proj")
         if CONNECT_RANK > 0:
+            target_modules.append("model.connector.modality_projection.proj")
+        if LM_HEAD_RANk > 0:
             target_modules.append("lm_head")
 
         # 创建一个字典，为每个模块指定rank值
@@ -165,10 +167,10 @@ def build_model():
                 rank_pattern[module_name] = layer_rank
 
         # 为lm_head设置默认rank
-        if LM_HEAD_RANk > 0:
-            rank_pattern["lm_head"] = LM_HEAD_RANk
         if CONNECT_RANK > 0:
             rank_pattern["model.connector.modality_projection.proj"] = CONNECT_RANK
+        if LM_HEAD_RANk > 0:
+            rank_pattern["lm_head"] = LM_HEAD_RANk
 
         lora_config = LoraConfig(
             r=LORA_R,  # 默认rank值
