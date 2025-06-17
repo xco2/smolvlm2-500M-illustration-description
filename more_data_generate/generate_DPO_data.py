@@ -81,14 +81,27 @@ def load_jsonl(file_path):
         return []
 
 
+# 保存jsonl文件
+def save_jsonl(data, file_path):
+    """保存数据列表到jsonl文件"""
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            for item in data:
+                f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        return True
+    except Exception as e:
+        print(f"保存数据失败: {e}")
+        return False
+
+
 # 请求大模型
 async def async_chat_with_llm(
-    image_path,
-    prompt,
-    api_url,
-    model_name="mimo-vl-7b-rl",
-    temperature=0.1,
-    max_tokens=8000,
+        image_path,
+        prompt,
+        api_url,
+        model_name="mimo-vl-7b-rl",
+        temperature=0.1,
+        max_tokens=8000,
 ):
     """
     请求大模型
@@ -128,12 +141,11 @@ async def async_chat_with_llm(
             if try_time == 3:
                 print("!!![async_score_with_mino_desc]尝试请求3次失败!!!")
                 return None
-        asyncio.sleep(0.05)
 
 
 # 检测是否有多个重复短语
 def has_many_short_words_sequence(
-    text, words_threshold=2, min_phrases=5, min_total_words=20
+        text, words_threshold=2, min_phrases=5, min_total_words=20
 ):
     """
     判断文本中是否包含大量逗号分隔的短词排列
@@ -202,7 +214,7 @@ def check_repeat(text: str) -> bool:
     for size in range(max_len, max_len - 15, -1):
         substr_count = {}
         for i in range(n - size + 1):
-            substr = text[i : i + size]
+            substr = text[i: i + size]
             if substr in substr_count:
                 substr_count[substr] += 1
             else:
@@ -226,7 +238,7 @@ class DataProcessor(ABC):
 
     @abstractmethod
     def preprocess_item(
-        self, item: Dict[str, Any], image_dir: str
+            self, item: Dict[str, Any], image_dir: str
     ) -> Optional[Dict[str, Any]]:
         """预处理单个数据项，返回处理后的数据或None（跳过）
 
@@ -240,7 +252,7 @@ class DataProcessor(ABC):
         pass
 
     async def request_model_with_id(
-        self, processed_item: Dict[str, Any]
+            self, processed_item: Dict[str, Any]
     ) -> tuple[int, Optional[str]]:
         model_response = await self.request_model(processed_item)
         return processed_item["id"], model_response
@@ -259,7 +271,7 @@ class DataProcessor(ABC):
 
     @abstractmethod
     def postprocess_result(
-        self, processed_item: Dict[str, Any], model_response: List[str]
+            self, processed_item: Dict[str, Any], model_response: List[str]
     ) -> Optional[Dict[str, Any]]:
         """后处理结果，子类可以实现自定义的结果格式
 
@@ -295,7 +307,7 @@ class DataProcessor(ABC):
         return {}
 
     async def process_batch(
-        self, batch_items: List[Dict[str, Any]], image_dir: str
+            self, batch_items: List[Dict[str, Any]], image_dir: str
     ) -> List[Dict[str, Any]]:
         """处理一个批次的数据"""
         tasks = []
@@ -385,7 +397,7 @@ class DataProcessor(ABC):
         return 0
 
     def process_data(
-        self, jsonl_file_path: str, image_dir: str
+            self, jsonl_file_path: str, image_dir: str
     ) -> List[Dict[str, Any]]:
         """主处理流程"""
         print("加载数据...")
@@ -421,7 +433,7 @@ class DataProcessor(ABC):
         print("开始生成...")
         print(f"num_genreate: {num_genreate}, batch_size: {batch_size}")
         for i in tqdm.tqdm(range(start_index, data_len, batch_size)):
-            batch_items = data[i : i + batch_size]
+            batch_items = data[i: i + batch_size]
 
             # 处理当前批次
             batch_results = loop.run_until_complete(
@@ -475,7 +487,7 @@ class SmolvlmProcessor(DataProcessor):
 
     # 预处理模型输入数据
     def preprocess_item(
-        self, item: Dict[str, Any], image_dir: str
+            self, item: Dict[str, Any], image_dir: str
     ) -> Optional[Dict[str, Any]]:
         """预处理模型输入数据"""
         img_path = os.path.join(image_dir, item["image"].replace("\\", "/"))
@@ -519,7 +531,7 @@ class SmolvlmProcessor(DataProcessor):
         )
 
     def postprocess_result(
-        self, processed_item: Dict[str, Any], model_response: List[str]
+            self, processed_item: Dict[str, Any], model_response: List[str]
     ) -> Optional[Dict[str, Any]]:
         """后处理DPO结果"""
         return {
@@ -555,17 +567,84 @@ class SmolvlmProcessor(DataProcessor):
         return tags
 
 
+# 使用SFT训练过的模型生成多条描述
 def step1(jsonl_file_path, image_dir, config):
     """使用smolvlm生成回答"""
     processor = SmolvlmProcessor(config)
     return processor.process_data(jsonl_file_path, image_dir)
 
 
+# 使用SFT训练过的模型生成多条问答
+def step2(jsonl_file_path, image_dir, config):
+    """使用smolvlm生成回答"""
+    processor = SmolvlmProcessor(config)
+    processor.step_name = "smolvlm_QA"
+    return processor.process_data(jsonl_file_path, image_dir)
+
+
+def format_dpo_data(jsonl_file_paths: list[str], image_dir, config):
+    """格式化生成的DPO数据"""
+    datas = []
+    for jsonl_file in jsonl_file_paths:
+        datas += load_jsonl(jsonl_file)
+    output_path = config["format"]["output_path"]
+    num_of_skip = 0
+
+    dpo_format_datas = []
+    for data in datas:
+        if data["original_answer"] != data["smolvlm_answers"][0]:
+            skip = False
+            if data["data_type"] == "QA":
+                or_answer = data["original_answer"].split(" ")
+                # 原来的回答只有一个词,而且这个词在生成的答案中,那么跳过
+                if len(or_answer) == 1 and or_answer[0] in data["smolvlm_answers"][0]:
+                    skip = True
+                    num_of_skip += 1
+            if not skip:
+                dpo_data = {
+                    "prompt": data["prompt"],
+                    "chosen": data["original_answer"],
+                    "rejected": data["smolvlm_answers"][0],
+                    "image": data["image"],
+                    "data_type": data["data_type"],
+                }
+                dpo_format_datas.append(dpo_data)
+
+        if data["original_answer"] != data["smolvlm_answers"][1]:
+            skip = False
+            if data["data_type"] == "QA":
+                or_answer = data["original_answer"].split(" ")
+                # 原来的回答只有一个词,而且这个词在生成的答案中,那么跳过
+                if len(or_answer) == 1 and or_answer[0] in data["smolvlm_answers"][1]:
+                    skip = True
+                    num_of_skip += 1
+            if not skip:
+                dpo_data = {
+                    "prompt": data["prompt"],
+                    "chosen": data["original_answer"],
+                    "rejected": data["smolvlm_answers"][1],
+                    "image": data["image"],
+                    "data_type": data["data_type"],
+                }
+                dpo_format_datas.append(dpo_data)
+
+    save_jsonl(dpo_format_datas, output_path)
+    print(f"共跳过 {num_of_skip} 条数据")
+    print(f"格式化完成！共生成 {len(dpo_format_datas)} 条数据，已保存到 {output_path}")
+
+
 if __name__ == "__main__":
     config = load_config(
         os.path.join(os.path.dirname(__file__), "generate_DPO_data_config.yaml")
     )
-    jsonl_file_path = config["input_jsonl"]
     image_dir = config["image_dir"]
 
-    step1(jsonl_file_path, image_dir, config)
+    # step1(config["desc_data_input_jsonl"], image_dir, config)
+
+    # step2(config["question_data_input_jsonl"], image_dir, config)
+
+    # ---------------------------------------------------------------
+    jsonl_file_paths = [config["smolvlm"]["output_path"],
+                        config["smolvlm_QA"]["output_path"]]
+    format_dpo_data(jsonl_file_paths, image_dir, config)
+    # ---------------------------------------------------------------

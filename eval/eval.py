@@ -75,15 +75,17 @@ if not skip_generate_and_translate:
 
     if lora_step > 0:
         print("加载LORA...")
-        # 加载LoRA适配器到基础模型，并传入修正后的config
-        model = PeftModel.from_pretrained(base_model_for_lora, lora_adapter_path)  # , config=peft_lora_config)
+        if config["model"]["base_adapter_path"] is not None:
+            # 加载LoRA适配器到基础模型，并传入修正后的config
+            model = PeftModel.from_pretrained(base_model_for_lora, config["model"]["base_adapter_path"])
+            model = model.merge_and_unload()
+        else:
+            model = base_model_for_lora
 
-        # 将最终的模型移动到CUDA设备
-        model = model.to("cuda").to(torch.bfloat16)
-        # print(model)
-
-        # 可选: 合并LoRA权重到基础模型。
+        model = PeftModel.from_pretrained(model, lora_adapter_path)
         model = model.merge_and_unload().eval()
+
+        model = model.to("cuda").to(torch.bfloat16)
     else:
         print("使用基础模型...")
         model = base_model_for_lora

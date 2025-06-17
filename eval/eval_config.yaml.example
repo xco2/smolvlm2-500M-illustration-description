@@ -8,6 +8,7 @@ model:
   smol: true  # 是否使用小模型
   base_model_path_small: "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"  # 小模型路径
   base_model_path_large: "HuggingFaceTB/SmolVLM2-2.2B-Instruct"  # 大模型路径
+  base_adapter_path: "../checkpoints/base/checkpoint-2000" # orpo从这个开始训练,若无则null
   lora_step: 10000  # LoRA步数
   lora_adapter_path: "../checkpoints/example/checkpoint-{lora_step}"  # LoRA适配器路径
 
